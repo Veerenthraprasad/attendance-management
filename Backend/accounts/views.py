@@ -1,56 +1,53 @@
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.contrib import messages
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, generics
+from rest_framework.permissions import IsAuthenticated
 
-from .models import StaffProfile
-
-
-def login_view(request):
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-
-        user = authenticate(request, username=username, password=password)
-
-        if user is None:
-            messages.error(request, 'Invalid username or password')
-            return redirect('login')
-
-        login(request, user)
-
-        # 🔑 ADMIN → Django Admin
-        if user.is_superuser:
-            return redirect('/admin/')
-
-        # 👷 STAFF → Staff dashboard
-        try:
-            StaffProfile.objects.get(user=user)
-            return redirect('/accounts/staff/dashboard/')
-        except StaffProfile.DoesNotExist:
-            messages.error(request, 'Staff profile not found')
-            return redirect('login')
-
-    return render(request, 'accounts/login.html')
+from .models import User
+from .serializers import (
+    UserCreateSerializer,
+    UserListSerializer,
+    MeSerializer,
+)
+from .permissions import IsAdmin
 
 
-@login_required
-def staff_dashboard(request):
-    try:
-        profile = StaffProfile.objects.get(user=request.user)
-    except StaffProfile.DoesNotExist:
-        messages.error(request, "Staff profile not found")
-        return redirect('login')
+# 👤 Logged-in user details
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    if profile.staff_category == 'SECURITY':
-        return render(request, 'accounts/security_dashboard.html')
+    def get(self, request):
+        serializer = MeSerializer(request.user)
+        return Response(serializer.data)
 
-    elif profile.staff_category == 'HOUSEKEEPING':
-        return render(request, 'accounts/housekeeping_dashboard.html')
 
-    elif profile.staff_category == 'CANTEEN':
-        return render(request, 'accounts/canteen_dashboard.html')
+# 👥 Admin creates users
+class CreateUserView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserCreateSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
 
-    else:
-        return render(request, 'accounts/staff_dashboard.html')
 
+# 📋 Admin list all users
+class ListUsersView(generics.ListAPIView):
+    queryset = User.objects.all().order_by("-date_joined")
+    serializer_class = UserListSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+
+# ✏ Admin update user
+class UpdateUserView(generics.UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserListSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+
+# ❌ Admin deactivate user
+class DeactivateUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def post(self, request, pk):
+        user = User.objects.get(pk=pk)
+        user.is_active = False
+        user.save()
+        return Response({"message": "User deactivated"})

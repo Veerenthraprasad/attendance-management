@@ -1,7 +1,16 @@
 from django.urls import path
-from .views import login_view, staff_dashboard
+from .views import (
+    MeView,
+    CreateUserView,
+    ListUsersView,
+    UpdateUserView,
+    DeactivateUserView,
+)
 
 urlpatterns = [
-    path('login/', login_view, name='login'),
-    path('staff/dashboard/', staff_dashboard, name='staff_dashboard'),
+    path("me/", MeView.as_view()),
+    path("create/", CreateUserView.as_view()),
+    path("list/", ListUsersView.as_view()),
+    path("update/<int:pk>/", UpdateUserView.as_view()),
+    path("deactivate/<int:pk>/", DeactivateUserView.as_view()),
 ]
